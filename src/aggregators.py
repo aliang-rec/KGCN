@@ -14,14 +14,13 @@ def get_layer_id(layer_name=''):
 
 
 class Aggregator(object):
-    def __init__(self, batch_size, dim, dropout, act, name):
+    def __init__(self, dim, dropout, act, name):
         if not name:
             layer = self.__class__.__name__.lower()
             name = layer + '_' + str(get_layer_id(layer))
         self.name = name
         self.dropout = dropout
         self.act = act
-        self.batch_size = batch_size
         self.dim = dim
 
     def __call__(self, self_vectors, neighbor_vectors, neighbor_relations, user_embeddings):
@@ -41,7 +40,7 @@ class Aggregator(object):
         avg = False
         if not avg:
             # [batch_size, 1, 1, dim]
-            user_embeddings = tf.reshape(user_embeddings, [self.batch_size, 1, 1, self.dim])
+            user_embeddings = tf.reshape(user_embeddings, [-1, 1, 1, self.dim])
 
             # [batch_size, -1, n_neighbor]
             user_relation_scores = tf.reduce_mean(user_embeddings * neighbor_relations, axis=-1)
@@ -60,8 +59,8 @@ class Aggregator(object):
 
 
 class SumAggregator(Aggregator):
-    def __init__(self, batch_size, dim, dropout=0., act=tf.nn.relu, name=None):
-        super(SumAggregator, self).__init__(batch_size, dim, dropout, act, name)
+    def __init__(self, dim, dropout=0., act=tf.nn.relu, name=None):
+        super(SumAggregator, self).__init__(dim, dropout, act, name)
 
         with tf.variable_scope(self.name):
             self.weights = tf.get_variable(
@@ -78,18 +77,20 @@ class SumAggregator(Aggregator):
         output = tf.matmul(output, self.weights) + self.bias
 
         # [batch_size, -1, dim]
-        output = tf.reshape(output, [self.batch_size, -1, self.dim])
+        output = tf.reshape(output, [-1, neighbors_agg.get_shape()[1], self.dim])
 
         return self.act(output)
 
 
 class ConcatAggregator(Aggregator):
-    def __init__(self, batch_size, dim, dropout=0., act=tf.nn.relu, name=None):
-        super(ConcatAggregator, self).__init__(batch_size, dim, dropout, act, name)
+    def __init__(self, dim, dropout=0., act=tf.nn.relu, name=None):
+        super(ConcatAggregator, self).__init__(dim, dropout, act, name)
 
         with tf.variable_scope(self.name):
             self.weights = tf.get_variable(
-                shape=[self.dim * 2, self.dim], initializer=tf.contrib.layers.xavier_initializer(), name='weights')
+                shape=[self.dim * 2, self.dim],
+                initializer=tf.contrib.layers.xavier_initializer(),
+                name='weights')
             self.bias = tf.get_variable(shape=[self.dim], initializer=tf.zeros_initializer(), name='bias')
 
     def _call(self, self_vectors, neighbor_vectors, neighbor_relations, user_embeddings):
@@ -107,14 +108,14 @@ class ConcatAggregator(Aggregator):
         output = tf.matmul(output, self.weights) + self.bias
 
         # [batch_size, -1, dim]
-        output = tf.reshape(output, [self.batch_size, -1, self.dim])
+        output = tf.reshape(output, [-1, neighbors_agg.get_shape()[1], self.dim])
 
         return self.act(output)
 
 
 class NeighborAggregator(Aggregator):
-    def __init__(self, batch_size, dim, dropout=0., act=tf.nn.relu, name=None):
-        super(NeighborAggregator, self).__init__(batch_size, dim, dropout, act, name)
+    def __init__(self, dim, dropout=0., act=tf.nn.relu, name=None):
+        super(NeighborAggregator, self).__init__(dim, dropout, act, name)
 
         with tf.variable_scope(self.name):
             self.weights = tf.get_variable(
@@ -131,6 +132,6 @@ class NeighborAggregator(Aggregator):
         output = tf.matmul(output, self.weights) + self.bias
 
         # [batch_size, -1, dim]
-        output = tf.reshape(output, [self.batch_size, -1, self.dim])
+        output = tf.reshape(output, [-1, neighbors_agg.get_shape()[1], self.dim])
 
         return self.act(output)

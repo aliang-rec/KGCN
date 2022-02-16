@@ -5,8 +5,6 @@ from data_loader import load_data
 from train import train
 
 np.random.seed(555)
-
-
 parser = argparse.ArgumentParser()
 
 # # movie
